@@ -1,245 +1,271 @@
-PRODUCT REQUIREMENTS DOCUMENT (PRD)
-1. Product Overview
+FINAL PRD (COMPLETE — PRODUCTION-READY)
+1. PRODUCT OVERVIEW
+Name
 
-Name: AI Cricket Coach
-Goal: Provide automated, structured feedback on cricket technique using video uploads.
+AI Cricket Coach
 
-Target Users
-Beginner/intermediate players (no coach access)
-Small academies (1–50 students)
-Core Value
-Replace manual video review with semi-automated biomechanical feedback
-🎯 Core Features (MVP ONLY)
+Objective
+
+Deliver structured, data-backed cricket technique feedback using video analysis.
+
+Not replacing human coaches
+Not perfect biomechanics
+But consistent and measurable improvement tracking
+2. CORE FEATURES
 Player
 Upload video
 Select shot type
-Get:
-Pose overlay (optional)
-Metrics (head movement, stance width, etc.)
-AI feedback
+Receive:
+Metrics (numerical)
+Issues / strengths / tips
+Track progress over time
+Compare improvements
+View weakness & strength trends
 Coach
-Manage players
-Upload videos for them
-View analytics
-❌ What is NOT in MVP
-Real-time feedback
-Perfect accuracy
-Pro-level coaching replacement
-🧱 SYSTEM ARCHITECTURE
-React (Frontend)
-   ↓
-Express API (Auth + CRUD)
-   ↓
-MongoDB (metadata)
-   ↓
+Manage academy players
+Assign players to batches/squads
+Upload videos for players
+View batch analytics
+Compare players and groups
+3. TECH STACK
+Frontend: React + Tailwind
+Backend: Express.js
+AI Service: Python + FastAPI
+Database: MongoDB Atlas
+Storage: S3 / Cloudinary
+AI: Gemma 2B Instruct via Hugging Face
+CV: MediaPipe BlazePose (+ optional YOLOv8)
+4. SYSTEM ARCHITECTURE
+React
+ ↓
+Express API
+ ↓
+MongoDB (metadata + analytics)
+ ↓
 Cloud Storage (videos)
-   ↓
-Python FastAPI (AI service)
-   ↓
-Pose + Metrics + LLM feedback
-🧠 AI PIPELINE DESIGN (CORE)
-Step 1 — Frame Extraction
-Use OpenCV
-Sample: 2–5 fps (NOT full video)
-Step 2 — Pose Estimation
-
-Use:
-
-MediaPipe BlazePose (primary)
-Backup: OpenPose
-Install
-pip install mediapipe opencv-python numpy
-Output
-33 keypoints per frame:
-{
-  "frame": 1,
-  "keypoints": {
-    "left_shoulder": [x, y],
-    "right_knee": [x, y]
-  }
-}
-Step 3 — Feature Engineering
-
-Compute:
-
-Head Stability
-head_movement = std_dev(nose_x over frames)
-Stance Width
-distance(left_ankle, right_ankle)
-Knee Bend
-angle(hip, knee, ankle)
-Balance Score (custom)
-Combine:
-head alignment
-center of mass
-foot spacing
-Step 4 — (Optional) Object Detection
-
-Use:
-
-YOLOv8
-
-Install:
-
-pip install ultralytics
-
-Use for:
-
-Bat detection → swing path
-Step 5 — LLM Feedback
-
-Use:
-
-Gemma 4
-Prompt Example
-You are a cricket coach.
-
-Metrics:
-- Head movement: 7.2 cm
-- Knee angle: 150°
-- Balance score: 0.62
-
-Give:
-1. Issues
-2. Improvements
-3. Short coaching tips
-🔌 HUGGING FACE USAGE (REAL STEPS)
-1. Install transformers
-pip install transformers accelerate
-2. Load Gemma
-from transformers import pipeline
-
-pipe = pipeline("text-generation", model="google/gemma-2b")
-
-response = pipe(prompt)
-
-👉 Don’t run large models locally unless GPU available
-👉 Otherwise use Hugging Face Inference API
-
-3. Hugging Face API (production)
-import requests
-
-API_URL = "https://api-inference.huggingface.co/models/google/gemma-2b"
-headers = {"Authorization": "Bearer YOUR_TOKEN"}
-
-response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
-🔧 BACKEND DESIGN (Express)
-Auth Routes
-POST /api/auth/register
-{
-  "email": "...",
-  "password": "...",
-  "role": "player"
-}
-POST /api/auth/login
-{
-  "email": "...",
-  "password": "..."
-}
-Player Routes
-POST /api/videos/upload
-Upload → Cloudinary
-Save metadata
-
-Response:
-
-{
-  "video_id": "123",
-  "status": "processing"
-}
-GET /api/videos/:id
-{
-  "video_url": "...",
-  "analysis": {...}
-}
-AI Trigger Route
-POST /api/analysis/start
-{
-  "video_id": "123",
-  "shot_type": "cover_drive"
-}
-
-👉 Push to queue
-
-Queue System
-
-Use:
-
-BullMQ + Redis
-🐍 PYTHON SERVICE (FastAPI)
-POST /analyze
-{
-  "video_url": "...",
-  "shot_type": "cover_drive"
-}
-Response
-{
-  "metrics": {
-    "head_movement": 6.2,
-    "knee_angle": 142,
-    "balance_score": 0.78
-  },
-  "issues": [...],
-  "tips": [...]
-}
-🗄️ DATABASE (Mongo)
+ ↓
+Python FastAPI
+ ↓
+Pose → Metrics → HF → Feedback
+5. DATA MODEL (FINAL)
 Users
 {
   "_id": "...",
   "email": "...",
-  "role": "player"
+  "password_hash": "...",
+  "role": "player | coach",
+  "name": "...",
+  "created_at": "..."
+}
+Players
+{
+  "_id": "...",
+  "user_id": "...",
+  "age": 18,
+  "experience_level": "beginner",
+  "preferred_role": "batter"
+}
+Coaches
+{
+  "_id": "...",
+  "user_id": "...",
+  "academy_name": "...",
+  "certification": "..."
+}
+Academy_Players (WITH BATCH SUPPORT — NEW)
+{
+  "_id": "...",
+  "coach_id": "...",
+  "player_id": "...",
+  "batch_name": "U-19 Squad",
+  "joined_date": "..."
 }
 Videos
 {
   "_id": "...",
   "player_id": "...",
+  "uploaded_by": "...",
   "video_url": "...",
-  "analysis": {...}
+  "shot_type": "cover_drive",
+  "status": "processing | done",
+  "created_at": "..."
 }
-Metrics (NEW — important)
+Analysis (UNIFIED)
 {
+  "_id": "...",
   "video_id": "...",
-  "head_movement": 6.2,
-  "knee_angle": 142
+  "metrics": {
+    "head_movement": 6.2,
+    "knee_angle": 142,
+    "balance_score": 0.78
+  },
+  "issues": [],
+  "strengths": [],
+  "tips": [],
+  "created_at": "..."
 }
-🎨 FRONTEND DESIGN DOC (React)
-Tech
-React + Tailwind
-Axios
-Zustand / Context
-Pages
-1. Landing Page
-Hero section
-CTA buttons
-2. Dashboard (Player)
+6. SHOT TYPE SCHEMA (STRICT VALIDATION)
+const SHOT_TYPES = [
+  "cover_drive",
+  "pull_shot",
+  "straight_drive",
+  "cut_shot",
+  "bowling_action",
+  "footwork"
+];
 
-Sections:
+👉 Backend rejects invalid values
 
-Profile card
-Upload panel
-Video list
-Analytics graphs
-Upload Flow UI
-Upload → Show "Processing..." → Poll API → Show result
-Analysis View
-Video player
-Metrics panel
-AI feedback
-Comparison chart
-3. Coach Dashboard
-Player list
-Filter controls
-Batch analytics
-📊 ANALYTICS UI
+7. AI PIPELINE
+Upload → Cloud storage
+Queue job
+Python:
+Extract frames (OpenCV)
+Pose detection (MediaPipe)
+Compute metrics
+Send metrics → Hugging Face (Gemma)
+Store structured output
+8. TIME-SERIES METRICS (FIXED)
 
+Each video = one time-stamped record:
+
+{
+  "player_id": "...",
+  "shot_type": "cover_drive",
+  "metrics": {...},
+  "created_at": "timestamp"
+}
+9. ANALYTICS ENGINE (FULLY IMPLEMENTED)
+9.1 Progress Over Time
+Group by player_id + shot_type
+Sort by timestamp
+Plot trends
+9.2 Compare Improvements
+improvement = latest_value - avg(previous_N)
+9.3 Weakness Tracker
+
+Count issue frequency:
+
+{
+  "head_falling": 6,
+  "late_footwork": 3
+}
+9.4 Strength Tracker
+
+Same logic for strengths
+
+9.5 Batch Analytics (Coach)
+
+Group by:
+
+coach_id
+batch_name
+
+Compute:
+
+avg metrics per batch
+compare players
+rank players
+9.6 Player Comparison
+compare(balance_score across players)
+9.7 Total Videos Analyzed (NEW)
+
+Computed:
+
+video_count = count(videos where player_id)
+10. BACKEND API
+Auth
+
+POST /api/auth/register
+POST /api/auth/login
+
+Upload
+
+POST /api/videos/upload
+
+Trigger Analysis
+
+POST /api/analysis/start
+
+Get Video + Analysis
+
+GET /api/videos/:id
+
+Player Analytics
+
+GET /api/analytics/player/:id
+
+{
+  "video_count": 12,
+  "progress": [...],
+  "weaknesses": {...},
+  "strengths": {...}
+}
+Coach Analytics
+
+GET /api/analytics/coach/:id
+
+{
+  "batches": [...],
+  "players": [...],
+  "comparisons": [...],
+  "avg_metrics": {...}
+}
+11. AUTHORIZATION (STRICT)
+Player
+Only own videos
+Coach
+Only players in Academy_Players
+12. ASYNC PROCESSING (FINAL)
+Upload → Queue → Python → Store → Frontend polls
+13. FRONTEND DESIGN
+Landing Page
+Hero: “AI Cricket Coach for Everyone”
+CTA:
+Sign Up as Player
+Sign Up as Coach
+Player Dashboard
+Profile
+Name
+Role
+Experience
+✅ Total videos analyzed
+Upload
+Select video
+Select shot type
 Show:
+Uploading → Processing → Result
+Analytics
+Video history
+Progress graphs
+Compare improvements
+Weakness tracker
+Strength tracker
+Coach Dashboard
+Manage Academy
+Add players
+Assign to batches
+Upload
+Upload for selected player
+Analytics
+Filter:
+by player
+by batch
+by shot type
+Compare players
+Batch insights
+14. DATA ISOLATION
+Player
+Only own data
+Coach
+Only academy players
+Enforced in backend (NOT UI)
+🚨 UX CORRECTION (FINAL)
 
-Head movement trend
-Balance score over time
-Weakness tags
-⚠️ UX RULE (IMPORTANT)
+❌ Remove:
 
-If analysis takes >10s:
+“Instant AI analysis”
 
-Show async status
-NEVER block UI
+✔ Use:
+
+Upload → Processing → Result
