@@ -38,7 +38,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    env: {
+      has_mongo: !!process.env.MONGODB_URI,
+      has_jwt: !!process.env.JWT_SECRET,
+      node_env: process.env.NODE_ENV
+    }
+  });
 });
 
 // Serve static files from the frontend/dist folder
