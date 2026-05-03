@@ -1,6 +1,7 @@
 require('dotenv').config();
 require('express-async-errors');
 const express = require('express');
+const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
@@ -40,12 +41,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve static files from the frontend/dist folder
+app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/academy', academyRoutes);
+
+// Handle SPA routing - serve index.html for any unknown routes
+app.get('*', (req, res, next) => {
+  // If the request is for an API route that wasn't matched, skip to 404
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+});
 
 // Socket.IO
 socketSetup(io);
@@ -60,7 +73,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler for API routes
 app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.method} ${req.path} not found.` });
 });
