@@ -23,39 +23,53 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ message: 'Role must be player or coach.' });
   }
 
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(409).json({ message: 'Email already registered.' });
-  }
-
-  const user = await User.create({ email, password_hash: password, name, role });
-
-  if (role === 'player') {
-    await Player.create({
-      user_id: user._id,
-      age: age || null,
-      experience_level: experience_level || 'beginner',
-      preferred_role: preferred_role || 'batter',
-    });
-  } else if (role === 'coach') {
-    if (!academy_name) {
-      await user.deleteOne();
-      return res.status(400).json({ message: 'Academy name is required for coaches.' });
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: 'This email is already registered. Please sign in instead.' });
     }
-    await Coach.create({
-      user_id: user._id,
-      academy_name,
-      certification: certification || '',
+
+    const user = await User.create({ email, password_hash: password, name, role });
+    let profile = null;
+
+    if (role === 'player') {
+      profile = await Player.create({
+        user_id: user._id,
+        age: age ? parseInt(age) : null,
+        experience_level: experience_level || 'beginner',
+        preferred_role: preferred_role || 'batter',
+      });
+    } else if (role === 'coach') {
+      if (!academy_name) {
+        await user.deleteOne();
+        return res.status(400).json({ message: 'Academy name is required for coaches.' });
+      }
+      profile = await Coach.create({
+        user_id: user._id,
+        academy_name,
+        certification: certification || '',
+      });
+    }
+
+    const token = signToken(user._id);
+
+    res.status(201).json({
+      message: 'Registration successful.',
+      token,
+      user: user.toJSON(),
+      profile
     });
+  } catch (error) {
+    console.error('Registration error:', error);
+    if (error.name === 'ValidationError') {
+      const message = Object.values(error.errors).map(val => val.message).join(', ');
+      return res.status(400).json({ message });
+    }
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'Email already exists.' });
+    }
+    throw error; // Let global handler catch other errors
   }
-
-  const token = signToken(user._id);
-
-  res.status(201).json({
-    message: 'Registration successful.',
-    token,
-    user: user.toJSON(),
-  });
 });
 
 // POST /api/auth/login

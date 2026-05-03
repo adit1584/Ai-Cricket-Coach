@@ -67,8 +67,17 @@ socketSetup(io);
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   const statusCode = err.statusCode || err.status || 500;
+  
+  // Specific handling for MongoDB errors
+  let message = err.message || 'Internal server error';
+  if (err.name === 'ValidationError') {
+    message = Object.values(err.errors).map(val => val.message).join(', ');
+  } else if (err.code === 11000) {
+    message = 'Duplicate field value entered';
+  }
+
   res.status(statusCode).json({
-    message: err.message || 'Internal server error',
+    message,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 });
@@ -81,17 +90,24 @@ app.use((req, res) => {
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
 
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB Atlas');
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+// Only listen if not running as a Vercel function
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  mongoose
+    .connect(process.env.MONGODB_URI)
+    .then(() => {
+      console.log('✅ Connected to MongoDB Atlas');
+      server.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('❌ MongoDB connection failed:', err.message);
     });
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    process.exit(1);
-  });
+} else {
+  // On Vercel, just connect to MongoDB
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('✅ Connected to MongoDB Atlas (Vercel)'))
+    .catch(err => console.error('❌ MongoDB connection failed (Vercel):', err.message));
+}
 
-module.exports = { app, server };
+module.exports = app;
